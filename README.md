@@ -40,7 +40,7 @@ WS2812 RGB LED on **GPIO48**). Any ESP32-S3 board with a native USB port works;
 adjust `TALON_LED_GPIO` in `main/led_status.h` if the RGB LED is on another pin.
 
 <p align="center">
-  <a href="https://www.amazon.ca/dp/B0FFLXM9KL"><img src="https://lonelybinary.com/cdn/shop/files/00_0a1aad17-c89e-455a-91f4-162c86f2b912.jpg?v=1778726754&width=1200" alt="Lonely Binary ESP32-S3 N16R8 Gold Edition" width="55%"></a>
+  <a href="https://www.amazon.ca/dp/B0FFLXM9KL"><img src="docs/board.jpg" alt="Lonely Binary ESP32-S3 N16R8 Gold Edition" width="55%"></a>
 </p>
 
 Wiring to the Xbox:
