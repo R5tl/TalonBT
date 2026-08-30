@@ -5,11 +5,13 @@ idf_component_register(
          "xid_descriptors.c"
          "xid_class.c"
          "talon_input.c"
+         "talon_igr.c"
          "wifi_net.c"
          "webui.c"
     INCLUDE_DIRS "."
-    EMBED_TXTFILES "index.html"
-    PRIV_REQUIRES esp_wifi nvs_flash esp_netif esp_event esp_http_server esp_hw_support
+    EMBED_TXTFILES "index.html" "setup.html"
+    PRIV_REQUIRES esp_wifi nvs_flash esp_netif esp_event esp_http_server
+                  esp_hw_support esp_driver_gpio esp_timer wpa_supplicant
 )
 
 # Byte-faithful EP0 size 8 for the Duke (esp_tinyusb defaults to 64). Inject the

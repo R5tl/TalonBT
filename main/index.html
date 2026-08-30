@@ -11,7 +11,7 @@
     --a:#5fbf3f; --b:#d0453f; --x:#3f7fd0; --y:#d0b23f;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-  body { margin:0; background:var(--bg); color:var(--txt);
+  body { margin:0; background:var(--bg); color:var(--txt); position:relative;
          font: 15px/1.4 system-ui, sans-serif; user-select:none; -webkit-user-select:none; }
   header { text-align:center; padding:10px 0 2px; }
   header h1 { margin:0; font-size:22px; letter-spacing:6px; color:var(--hot); }
@@ -30,11 +30,15 @@
   .dpad .blank { visibility:hidden; }
   /* face buttons */
   .face { display:grid; grid-template:repeat(3,52px)/repeat(3,52px); gap:4px; }
-  .face button { border-radius:50%; font-size:17px; color:#0d100d; border:none; }
+  .face button, .bw button { border-radius:50%; font-size:17px; color:#0d100d; border:none; }
   .face .bA { background:var(--a); } .face .bB { background:var(--b); }
   .face .bX { background:var(--x); } .face .bY { background:var(--y); }
-  .face .bBlk { background:#333; color:#ddd; } .face .bWht { background:#ddd; color:#222; }
-  .face button:active { filter:brightness(1.6); }
+  .face button:active, .bw button:active { filter:brightness(1.6); }
+  /* black/white cluster between the d-pad and the face diamond */
+  .bw { display:flex; flex-direction:column; gap:10px; justify-content:center; }
+  .bw button { width:46px; height:46px; }
+  .bw .bBlk { background:#333; color:#ddd; }
+  .bw .bWht { background:#ddd; color:#222; }
   /* centre buttons + triggers */
   .mid button { padding:10px 16px; }
   .trig { flex:1; display:flex; flex-direction:column; gap:4px; align-items:stretch; }
@@ -49,11 +53,31 @@
           pointer-events:none; }
   .stick span { position:absolute; bottom:4px; width:100%; text-align:center;
                 font-size:10px; color:var(--dim); }
+  /* IGR section */
+  .igr-head { display:flex; justify-content:space-between; align-items:center;
+              cursor:pointer; font-weight:600; letter-spacing:1px; color:var(--dim); }
+  .igr-body { display:none; margin-top:12px; }
+  #igr.open { display:block; }
+  .igr.open .chev, .igr-body.open { }
+  .igr-note { font-size:12px; color:var(--dim); margin-bottom:10px; }
+  .igr-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .igr-grid button { display:flex; flex-direction:column; align-items:center;
+                     padding:10px 6px; line-height:1.2; }
+  .igr-grid button small { color:var(--dim); font-size:10px; font-weight:400;
+                           margin-top:3px; }
+  .igr-grid button.warn { border-color:#7a3a2c; }
+  .igr-grid button.warn:active { background:var(--b); color:#fff; }
+  .igr-grid button small { pointer-events:none; }
+  .igr-grid button.flash { background:var(--hot); color:#0a120a; }
 </style>
 </head>
 <body>
-<header><h1>TALON</h1></header>
+<header><h1>TALON</h1>
+  <a href="/setup" style="position:absolute;top:12px;right:14px;color:var(--dim);
+     text-decoration:none;font-size:20px" title="WiFi setup">⚙</a>
+</header>
 <div id="status">connecting…</div>
+<div id="gpstatus" style="text-align:center;color:var(--dim);font-size:12px;min-height:16px"></div>
 <main>
   <div class="row">
     <div class="pad dpad">
@@ -61,10 +85,14 @@
       <button data-b="left">◀</button><i class="blank"></i><button data-b="right">▶</button>
       <i class="blank"></i><button data-b="down">▼</button><i class="blank"></i>
     </div>
+    <div class="pad bw">
+      <button class="bBlk" data-b="black">●</button>
+      <button class="bWht" data-b="white">○</button>
+    </div>
     <div class="pad face">
-      <i class="blank"></i><button class="bY" data-b="y">Y</button><button class="bBlk" data-b="black">●</button>
-      <button class="bX" data-b="x">X</button><i class="blank"></i><button class="bWht" data-b="white">○</button>
-      <i class="blank"></i><button class="bA" data-b="a">A</button><button class="bB" data-b="b">B</button>
+      <i class="blank"></i><button class="bY" data-b="y">Y</button><i class="blank"></i>
+      <button class="bB" data-b="b">B</button><i class="blank"></i><button class="bX" data-b="x">X</button>
+      <i class="blank"></i><button class="bA" data-b="a">A</button><i class="blank"></i>
     </div>
   </div>
   <div class="row cluster mid">
@@ -81,6 +109,24 @@
     <button data-b="ls">L CLICK</button>
     <button onclick="fetch('/api/release')">RELEASE ALL</button>
     <button data-b="rs">R CLICK</button>
+  </div>
+
+  <div class="cluster igr">
+    <div class="igr-head" onclick="document.getElementById('igr').classList.toggle('open')">
+      <span>⚡ CERBIOS IGR</span><span class="chev">▾</span>
+    </div>
+    <div id="igr" class="igr-body">
+      <div class="igr-note">In-Game Reset combos (Cerbios defaults). Tap to hold the
+        combo for ~0.8 s. These reset or power the console.</div>
+      <div class="igr-grid">
+        <button onclick="igr('dash',this)">Reset to Dash<small>LT+RT+Start+Back</small></button>
+        <button onclick="igr('game',this)">Reload Game<small>Black+LT+RT+Start</small></button>
+        <button onclick="igr('full',this)">Full Reset<small>Black+LT+RT+Back</small></button>
+        <button onclick="igr('screen',this)">Screenshot<small>Black+LT+RT+Down</small></button>
+        <button class="warn" onclick="igr('cycle',this)">Power Cycle<small>Black+LT+RT+Up</small></button>
+        <button class="warn" onclick="igr('shutdown',this)">Shutdown<small>LT+RT+Up+Back</small></button>
+      </div>
+    </div>
   </div>
 </main>
 <script>
@@ -143,6 +189,63 @@ document.querySelectorAll('.stick').forEach(el => {
   el.addEventListener('pointerup', rel);
   el.addEventListener('pointercancel', rel);
 });
+
+// ---- physical gamepad forwarding (Gamepad API, standard mapping) ----------
+// Plug a controller into the device viewing this page and it drives the Xbox:
+// the whole state goes out as one /api/state request whenever it changes
+// (plus a 500 ms keep-alive), capped at ~30 Hz.
+const DEAD = 0.08;
+let gpIndex = null, gpLastSent = '', gpLastTime = 0;
+
+window.addEventListener('gamepadconnected', e => {
+  gpIndex = e.gamepad.index;
+  document.getElementById('gpstatus').textContent = `🎮 ${e.gamepad.id} → Xbox`;
+  gpLoop();
+});
+window.addEventListener('gamepaddisconnected', e => {
+  if (e.gamepad.index !== gpIndex) return;
+  gpIndex = null;
+  document.getElementById('gpstatus').textContent = '';
+  api('/api/release');
+});
+
+function axv(v) {                       // deadzone + scale to s16
+  if (Math.abs(v) < DEAD) return 0;
+  return Math.round(Math.max(-1, Math.min(1, v)) * 32767);
+}
+
+function gpLoop() {
+  if (gpIndex === null) return;
+  const gp = navigator.getGamepads()[gpIndex];
+  if (gp) {
+    const b = i => gp.buttons[i] || { pressed: false, value: 0 };
+    const digital = (b(12).pressed ? 1 : 0) | (b(13).pressed ? 2 : 0) |
+                    (b(14).pressed ? 4 : 0) | (b(15).pressed ? 8 : 0) |
+                    (b(9).pressed ? 16 : 0) | (b(8).pressed ? 32 : 0) |
+                    (b(10).pressed ? 64 : 0) | (b(11).pressed ? 128 : 0);
+    const a255 = i => Math.round(b(i).value * 255);
+    // XID: LB->white, RB->black; stick Y is up-positive (invert browser axes)
+    const state = [digital, a255(0), a255(1), a255(2), a255(3), a255(5), a255(4),
+                   a255(6), a255(7),
+                   axv(gp.axes[0]), -axv(gp.axes[1]),
+                   axv(gp.axes[2]), -axv(gp.axes[3])].join(',');
+    const now = performance.now();
+    if ((state !== gpLastSent && now - gpLastTime > 33) || now - gpLastTime > 500) {
+      gpLastSent = state; gpLastTime = now;
+      api(`/api/state?v=${state}`);
+    }
+  }
+  requestAnimationFrame(gpLoop);
+}
+
+// IGR: power actions confirm first; the rest fire immediately with a flash.
+async function igr(action, btn) {
+  if (btn.classList.contains('warn') &&
+      !confirm(`${btn.firstChild.textContent.trim()} the Xbox?`)) return;
+  btn.classList.add('flash');
+  try { await fetch('/api/igr?a=' + action); } catch (e) {}
+  setTimeout(() => btn.classList.remove('flash'), 900);
+}
 
 // status poll
 setInterval(async () => {

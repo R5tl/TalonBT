@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Talon Setup</title>
+<style>
+  :root { --bg:#101410; --panel:#1a221a; --edge:#2c3a2c; --txt:#cfe3cf;
+          --dim:#7a8f7a; --hot:#52d053; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt);
+         font:15px/1.5 system-ui, sans-serif; }
+  main { max-width:420px; margin:0 auto; padding:16px; display:flex;
+         flex-direction:column; gap:14px; }
+  h1 { text-align:center; font-size:22px; letter-spacing:6px; color:var(--hot);
+       margin:12px 0 0; }
+  .sub { text-align:center; color:var(--dim); font-size:12px; margin-top:-6px; }
+  .card { background:var(--panel); border:1px solid var(--edge);
+          border-radius:14px; padding:14px; }
+  .card h2 { margin:0 0 8px; font-size:13px; color:var(--dim);
+             text-transform:uppercase; letter-spacing:2px; }
+  input, button { width:100%; padding:11px 12px; margin-top:8px; font:inherit;
+                  border-radius:9px; border:1px solid var(--edge);
+                  background:#232d23; color:var(--txt); }
+  button { font-weight:600; cursor:pointer; }
+  button.primary { background:var(--hot); color:#0a120a; border:none; }
+  #nets { margin-top:8px; max-height:220px; overflow-y:auto; }
+  .net { padding:9px 10px; border-bottom:1px solid var(--edge); cursor:pointer;
+         display:flex; justify-content:space-between; }
+  .net:hover { background:#232d23; }
+  .net .rssi { color:var(--dim); font-size:12px; }
+  #msg { text-align:center; min-height:20px; color:var(--hot); font-size:13px;
+         white-space:pre-line; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TALON</h1>
+  <div class="sub">WiFi setup</div>
+  <div id="msg"></div>
+
+  <div class="card">
+    <h2>Join a network</h2>
+    <button onclick="scan()" id="scanBtn">SCAN FOR NETWORKS</button>
+    <div id="nets"></div>
+    <input id="ssid" placeholder="Network name (SSID)" autocapitalize="off">
+    <input id="pass" placeholder="Password" type="password">
+    <button class="primary" onclick="save()">JOIN</button>
+  </div>
+
+  <div class="card">
+    <h2>Or use WPS</h2>
+    <div style="color:var(--dim);font-size:13px">Press the WPS button on your
+    router, then tap below. Talon joins within two minutes and saves the
+    network.</div>
+    <button onclick="wps()" id="wpsBtn">START WPS</button>
+  </div>
+
+  <div class="card">
+    <h2>After joining</h2>
+    <div style="color:var(--dim);font-size:13px">Reconnect your phone to your
+    own WiFi and find Talon at <b style="color:var(--txt)">http://talon.local/</b>
+    (or its IP from your router's device list — hostname "talon").</div>
+  </div>
+</main>
+<script>
+const msg = t => document.getElementById('msg').textContent = t;
+
+async function scan() {
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true; btn.textContent = 'SCANNING…';
+  try {
+    const nets = await (await fetch('/api/scan')).json();
+    const box = document.getElementById('nets');
+    box.innerHTML = '';
+    nets.sort((a, b) => b.rssi - a.rssi).forEach(n => {
+      const d = document.createElement('div');
+      d.className = 'net';
+      d.innerHTML = `<span>${n.open ? '' : '🔒 '}${n.ssid}</span>` +
+                    `<span class="rssi">${n.rssi} dBm</span>`;
+      d.onclick = () => { document.getElementById('ssid').value = n.ssid;
+                          document.getElementById('pass').focus(); };
+      box.appendChild(d);
+    });
+    if (!nets.length) msg('No networks found — try again.');
+  } catch (e) { msg('Scan failed — try again.'); }
+  btn.disabled = false; btn.textContent = 'SCAN FOR NETWORKS';
+}
+
+async function save() {
+  const ssid = document.getElementById('ssid').value.trim();
+  const pass = document.getElementById('pass').value;
+  if (!ssid) { msg('Enter a network name.'); return; }
+  try {
+    const r = await (await fetch(`/api/wifi/save?ssid=${encodeURIComponent(ssid)}` +
+                                 `&pass=${encodeURIComponent(pass)}`)).json();
+    if (r.ok) msg(`Saved. Talon is joining "${ssid}" now.\n` +
+                  'Reconnect to your own WiFi and open http://talon.local/');
+    else msg('Error: ' + r.error);
+  } catch (e) { msg('Talon did not answer — it may already be switching.'); }
+}
+
+let wpsPoll = null;
+async function wps() {
+  msg('Press the WPS button on your router…');
+  try { await fetch('/api/wps/start'); } catch (e) {}
+  msg('WPS running — this network may disappear while Talon negotiates.\n' +
+      'When it succeeds, find Talon at http://talon.local/');
+  if (wpsPoll) clearInterval(wpsPoll);
+  wpsPoll = setInterval(async () => {
+    try {
+      const s = await (await fetch('/api/status')).json();
+      if (s.wps === 'connecting') msg(`WPS: waiting for router… ${s.wps_remaining}s left`);
+      else if (s.wps === 'connected') { msg(`Joined "${s.ssid}" — open http://talon.local/`);
+                                        clearInterval(wpsPoll); }
+      else if (s.wps === 'failed') { msg('WPS failed or timed out — try again.');
+                                     clearInterval(wpsPoll); }
+    } catch (e) { /* AP down during negotiation — expected */ }
+  }, 2000);
+}
+</script>
+</body>
+</html>

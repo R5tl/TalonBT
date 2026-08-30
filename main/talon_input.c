@@ -73,6 +73,24 @@ bool talon_set_control(const char *name, int v) {
     return ok;
 }
 
+void talon_set_state_all(const int vals[13]) {
+    portENTER_CRITICAL(&s_mux);
+    s_state.digital = (uint8_t)(vals[0] & 0xFF);
+    s_state.a     = clamp_u8(vals[1]);
+    s_state.b     = clamp_u8(vals[2]);
+    s_state.x     = clamp_u8(vals[3]);
+    s_state.y     = clamp_u8(vals[4]);
+    s_state.black = clamp_u8(vals[5]);
+    s_state.white = clamp_u8(vals[6]);
+    s_state.lt    = clamp_u8(vals[7]);
+    s_state.rt    = clamp_u8(vals[8]);
+    s_state.lx    = clamp_s16(vals[9]);
+    s_state.ly    = clamp_s16(vals[10]);
+    s_state.rx    = clamp_s16(vals[11]);
+    s_state.ry    = clamp_s16(vals[12]);
+    portEXIT_CRITICAL(&s_mux);
+}
+
 void talon_reset_controls(void) {
     portENTER_CRITICAL(&s_mux);
     memset(&s_state, 0, sizeof(s_state));

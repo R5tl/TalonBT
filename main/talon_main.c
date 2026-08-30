@@ -8,6 +8,7 @@
 // Falcon project showed radio bring-up can disturb Xbox USB enumeration.
 #include "esp_log.h"
 #include "esp_system.h"
+#include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "tinyusb.h"
@@ -19,6 +20,31 @@
 static const char *TAG = "talon";
 
 void webui_start(void);
+
+// Physical recovery: hold the BOOT button (GPIO0) ~3 s to erase the stored
+// WiFi credentials and drop back into the "Talon-Setup" provisioning AP —
+// the way out of a wrong-password lockout without reflashing.
+static void boot_button_task(void *arg) {
+    (void)arg;
+    gpio_config_t io = {
+        .pin_bit_mask = 1ULL << GPIO_NUM_0,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+    };
+    gpio_config(&io);
+    int held = 0;
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        if (gpio_get_level(GPIO_NUM_0) == 0) {
+            if (++held == 30) {
+                ESP_LOGW(TAG, "BOOT held 3s — forgetting WiFi, entering setup mode");
+                wifi_net_forget();
+            }
+        } else {
+            held = 0;
+        }
+    }
+}
 
 void app_main(void) {
     ESP_LOGI(TAG, "boot: reset_reason=%d", (int)esp_reset_reason());
@@ -44,6 +70,7 @@ void app_main(void) {
     ESP_LOGI(TAG, "mounted=%d — starting WiFi", tud_mounted() ? 1 : 0);
     wifi_net_start();
     webui_start();
+    xTaskCreate(boot_button_task, "bootbtn", 2560, NULL, tskIDLE_PRIORITY + 2, NULL);
 
     // Periodic UART status so a serial monitor sees the whole story even if
     // single event lines are missed — and so a reboot is obvious (t resets).
@@ -52,9 +79,11 @@ void app_main(void) {
         char ip[16] = "-"; int rssi = 0;
         wifi_net_up(ip, &rssi);
         uint16_t rl, rr; talon_get_rumble(&rl, &rr);
-        ESP_LOGI(TAG, "HB t=%lus mnt=%d ip=%s rssi=%d rst=%lu open=%lu xid=%lu "
+        static const char *modes[] = { "sta", "setup", "wps" };
+        ESP_LOGI(TAG, "HB t=%lus mnt=%d net=%s ip=%s rssi=%d rst=%lu open=%lu xid=%lu "
                       "in_ok=%lu in_err=%lu rumble=%lu(%u/%u) free=%u",
-                 (unsigned long)(t * 5), tud_mounted() ? 1 : 0, ip, rssi,
+                 (unsigned long)(t * 5), tud_mounted() ? 1 : 0,
+                 modes[wifi_net_mode()], ip, rssi,
                  (unsigned long)g_xid_reset, (unsigned long)g_xid_open,
                  (unsigned long)g_xid_ctrl_xid, (unsigned long)g_xid_in_ok,
                  (unsigned long)g_xid_in_err, (unsigned long)g_xid_out_pkts,

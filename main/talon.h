@@ -19,6 +19,10 @@ bool talon_set_control(const char *name, int v);
 // Release everything (all buttons up, axes centered).
 void talon_reset_controls(void);
 
+// Set the whole state atomically (gamepad forwarding). vals[13]:
+// digital,a,b,x,y,black,white,lt,rt,lx,ly,rx,ry — analog 0..255, axes s16.
+void talon_set_state_all(const int vals[13]);
+
 // Last rumble values received from the Xbox (left/right actuator, 0..65535).
 void talon_get_rumble(uint16_t *left, uint16_t *right);
 
