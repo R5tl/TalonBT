@@ -1,11 +1,36 @@
-# Talon — WiFi-enabled original Xbox controller (ESP32-S3)
+<h1 align="center">Talon</h1>
+
+<p align="center"><b>A WiFi &amp; Bluetooth-enabled original Xbox controller, emulated on an ESP32-S3</b></p>
+
+<p align="center">
+  <a href="https://github.com/Team-Resurgent/Talon/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"></a>
+  <a href="https://github.com/Team-Resurgent/Talon/actions/workflows/release.yml"><img src="https://github.com/Team-Resurgent/Talon/actions/workflows/release.yml/badge.svg" alt="Release"></a>
+  <a href="https://discord.gg/VcdSfajQGK"><img src="https://img.shields.io/badge/chat-on%20discord-7289da.svg?logo=discord" alt="Discord"></a>
+</p>
+
+<p align="center">
+  <a href="https://ko-fi.com/J3J7L5UMN"><img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="ko-fi"></a>
+  <a href="https://www.patreon.com/teamresurgent"><img src="https://img.shields.io/badge/Patreon-F96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Patreon"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Team-Resurgent/Talon/releases/latest"><img src="https://img.shields.io/badge/download-latest-brightgreen.svg?style=for-the-badge&logo=github" alt="Download"></a>
+</p>
 
 Talon makes an ESP32-S3 present itself as an **original Xbox "Duke" controller**
 (Microsoft `045E:0202`, XID class `0x58/0x42`) on the Xbox controller port,
 while joining your WiFi and serving a phone-friendly **web UI** — a controller
-you press from a browser. Sibling project of
-[Falcon](../Falcon), the Xbox Video Camera emulator, and built on the same
-skeleton (ESP-IDF + esp_tinyusb + a custom application class driver).
+you press from a browser. It can also relay a physical controller (browser
+Gamepad API or a directly-paired BLE pad) and fire the Cerbios In-Game-Reset
+combos. Sibling project of Falcon, the Xbox Video Camera emulator, and built on
+the same skeleton (ESP-IDF + esp_tinyusb + a custom application class driver).
+
+<p align="center">
+  <img src="docs/controller.png" alt="Controller web UI" width="32%">
+  <img src="docs/setup.png" alt="WiFi setup" width="32%">
+  <img src="docs/ota.png" alt="OTA firmware update" width="32%">
+</p>
+<p align="center"><sub>The browser controller (talon.local) · WiFi setup portal · OTA firmware update</sub></p>
 
 ## How it works
 
@@ -31,24 +56,39 @@ list). The web page has a ⚙ link to the WiFi setup page.
 
 ## WiFi setup (like Kratos)
 
-Credentials live in NVS. With none stored, Talon starts an open SoftAP
-**`Talon-Setup`** with a captive portal — join it from a phone and the setup
-page pops up. You can:
+Credentials live in NVS. With none stored — or if the stored ones fail to
+connect within 45 s — Talon starts an open SoftAP **`Talon-Setup`** with a
+captive portal; join it from a phone and the setup page pops up. You can **scan +
+join** a network, or use **WPS**. Entered/negotiated credentials are saved and
+rejoined automatically on boot. For a personal build you can also compile
+credentials in (`main/wifi_creds.h`, seeded into NVS on first boot).
 
-- **Scan + join** a network (enter the password), or
-- **WPS** — press your router's WPS button, then tap *Start WPS*.
+The **BOOT button** provides phone-free setup, matching Kratos:
 
-Negotiated/entered credentials are saved and rejoined automatically on boot.
-Holding the **BOOT** button (~3 s) forgets WiFi and returns to setup mode.
-For a personal build you can also compile credentials in (`main/wifi_creds.h`,
-seeded into NVS on first boot).
+| Gesture | Action | Status LED (WS2812, GPIO48) |
+|---|---|---|
+| Short press | Open the `Talon-Setup` portal | breathing white |
+| Hold ~3 s | Start WPS (then press the router's WPS) | blinking white |
 
 ## Physical controller passthrough
 
-The controller page reads the browser **Gamepad API**: plug a controller into
-the phone/PC viewing the page and it drives the Xbox directly — the whole state
-is streamed to `/api/state` at ~30 Hz. (This is the local-browser gamepad, not
-a controller paired to the ESP32 — see "Bluetooth" in the repo notes.)
+Two ways to drive the Xbox with a real controller:
+
+- **Browser Gamepad API** — plug/pair a controller into the phone/PC viewing the
+  page; its state streams to `/api/state` at ~30 Hz. Works with any controller
+  the browsing device supports (including DualSense over the PC's Bluetooth).
+- **Direct BLE pairing** — pair a **BLE** controller straight to the ESP32-S3
+  from the *Bluetooth Controller* panel on the controller page (no browser
+  needed once bonded). Because the S3 has **no Bluetooth Classic**, only BLE
+  pads work here (BLE Xbox controllers, BLE 8BitDo, generic BLE gamepads);
+  DualShock/DualSense/Switch Pro are Classic and must use the browser relay.
+
+## OTA updates
+
+Talon runs from dual OTA slots. Build a new firmware and upload `talon.bin` to
+`http://talon.local/ota` (drag-and-drop page) — it flashes the inactive slot,
+verifies, and reboots into it. If the new image fails, the bootloader rolls back
+to the previous slot.
 
 ## Cerbios IGR
 

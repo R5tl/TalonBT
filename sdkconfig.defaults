@@ -9,7 +9,12 @@ CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
 # Partition table (single app; adjust flash size to your board).
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
-CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+
+# OTA: confirm-or-rollback. A freshly flashed image boots PENDING_VERIFY; Talon
+# calls esp_ota_mark_app_valid_cancel_rollback() once it's fully up (app_main),
+# so an image that crashes before then is rolled back to the previous slot.
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 
 # TinyUSB device stack (esp_tinyusb). No stock class is enabled — Talon supplies
 # its own descriptors and a custom XID class driver (usbd_app_driver_get_cb).
@@ -20,3 +25,16 @@ CONFIG_TINYUSB_DEBUG_LEVEL=1
 # emulator). Slave/FIFO mode copies via CPU and is stable; a 20-byte interrupt
 # report every 4 ms is trivial load.
 CONFIG_TINYUSB_MODE_SLAVE=y
+
+# Bluetooth LE HID host (Bluedroid, BLE-only). The ESP32-S3 has NO Bluetooth
+# Classic radio, so only BLE HID controllers (BLE Xbox pads, BLE 8BitDo, generic
+# BLE gamepads) can pair — Classic pads (DualShock/DualSense/Switch Pro) cannot.
+# WiFi + BLE share the one 2.4 GHz radio via the coexistence arbiter.
+CONFIG_BT_ENABLED=y
+CONFIG_BT_BLUEDROID_ENABLED=y
+CONFIG_BT_BLE_ENABLED=y
+CONFIG_BT_GATTC_ENABLE=y
+CONFIG_BT_BLE_42_FEATURES_SUPPORTED=y
+CONFIG_BT_BLE_SMP_ENABLE=y
+# WiFi/BLE software coexistence.
+CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y

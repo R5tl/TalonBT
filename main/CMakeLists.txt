@@ -8,10 +8,16 @@ idf_component_register(
          "talon_igr.c"
          "wifi_net.c"
          "webui.c"
+         "bt_host.c"
+         "bt_hidmap.c"
+         "esp_hid_gap.c"
+         "led_status.c"
+         "ota.c"
     INCLUDE_DIRS "."
-    EMBED_TXTFILES "index.html" "setup.html"
+    EMBED_TXTFILES "index.html" "setup.html" "ota.html"
     PRIV_REQUIRES esp_wifi nvs_flash esp_netif esp_event esp_http_server
                   esp_hw_support esp_driver_gpio esp_timer wpa_supplicant
+                  bt esp_hid app_update
 )
 
 # Byte-faithful EP0 size 8 for the Duke (esp_tinyusb defaults to 64). Inject the

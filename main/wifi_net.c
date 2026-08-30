@@ -39,9 +39,16 @@ static volatile talon_net_mode_t  s_mode = TALON_NET_STA;
 static volatile talon_wps_state_t s_wps_state = TALON_WPS_IDLE;
 static int64_t s_wps_start_us;
 static volatile bool s_up;
+static volatile bool s_ever_connected;    // got an IP at least once this boot
 static char s_ip[16];
 static char s_ssid[33], s_pass[65];
 static esp_timer_handle_t s_apply_timer;
+static esp_timer_handle_t s_fallback_timer;
+
+// If the stored credentials never connect within this long, fall back to the
+// SoftAP setup portal so wrong/stale settings don't loop forever. Only applies
+// before the first successful connection — later drops keep retrying STA.
+#define STA_FALLBACK_MS 45000
 
 // ---- credential store ------------------------------------------------------
 
@@ -193,6 +200,23 @@ static void captive_dns_stop(void) {
 
 // ---- mode transitions ------------------------------------------------------
 
+// Arm the "creds never worked -> AP setup" fallback, unless we've already had a
+// good connection this boot (then transient drops should just keep retrying).
+static void arm_fallback(void) {
+    if (s_ever_connected) return;
+    esp_timer_stop(s_fallback_timer);
+    esp_timer_start_once(s_fallback_timer, (uint64_t)STA_FALLBACK_MS * 1000);
+}
+
+static void fallback_timer_cb(void *arg) {
+    (void)arg;
+    if (!s_up && s_mode == TALON_NET_STA && !s_ever_connected) {
+        ESP_LOGW(TAG, "no connection in %d s — stored WiFi looks invalid, entering setup AP",
+                 STA_FALLBACK_MS / 1000);
+        wifi_net_enter_setup();
+    }
+}
+
 static void begin_sta(void) {
     s_mode = TALON_NET_STA;
     wifi_config_t wc = { 0 };
@@ -201,6 +225,7 @@ static void begin_sta(void) {
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_set_config(WIFI_IF_STA, &wc);
     esp_wifi_connect();
+    arm_fallback();
     ESP_LOGI(TAG, "joining ssid=%s", s_ssid);
 }
 
@@ -361,6 +386,8 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data) {
         ip_event_got_ip_t *e = (ip_event_got_ip_t *)data;
         snprintf(s_ip, sizeof(s_ip), IPSTR, IP2STR(&e->ip_info.ip));
         s_up = true;
+        s_ever_connected = true;
+        esp_timer_stop(s_fallback_timer);       // creds are good; cancel AP fallback
         if (s_wps_state == TALON_WPS_CONNECTING) {
             // Persist what WPS negotiated so the next boot joins directly.
             wifi_config_t wc = { 0 };
@@ -399,6 +426,8 @@ void wifi_net_start(void) {
 
     const esp_timer_create_args_t ta = { .callback = apply_timer_cb, .name = "wifi_apply" };
     ESP_ERROR_CHECK(esp_timer_create(&ta, &s_apply_timer));
+    const esp_timer_create_args_t tf = { .callback = fallback_timer_cb, .name = "wifi_fallback" };
+    ESP_ERROR_CHECK(esp_timer_create(&tf, &s_fallback_timer));
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -424,4 +453,5 @@ void wifi_net_start(void) {
 
     // STA connect happens on WIFI_EVENT_STA_START; the AP needs explicit setup.
     if (s_mode == TALON_NET_AP_SETUP) wifi_net_enter_setup();
+    else arm_fallback();   // bad stored creds -> setup AP after STA_FALLBACK_MS
 }

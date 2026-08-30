@@ -16,14 +16,17 @@
 #include "xid_descriptors.h"
 #include "talon.h"
 #include "wifi_net.h"
+#include "bt_host.h"
+#include "led_status.h"
 
 static const char *TAG = "talon";
 
 void webui_start(void);
+void ota_mark_valid(void);
 
-// Physical recovery: hold the BOOT button (GPIO0) ~3 s to erase the stored
-// WiFi credentials and drop back into the "Talon-Setup" provisioning AP —
-// the way out of a wrong-password lockout without reflashing.
+// Physical BOOT button (GPIO0), matching Kratos so WiFi setup needs no phone:
+//   * short press   -> WiFi setup (SoftAP "Talon-Setup"); status LED breathes white.
+//   * hold (>= 3 s) -> WPS: then press the router's WPS button; LED blinks white.
 static void boot_button_task(void *arg) {
     (void)arg;
     gpio_config_t io = {
@@ -33,15 +36,23 @@ static void boot_button_task(void *arg) {
     };
     gpio_config(&io);
     int held = 0;
+    bool long_fired = false;
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(100));
         if (gpio_get_level(GPIO_NUM_0) == 0) {
-            if (++held == 30) {
-                ESP_LOGW(TAG, "BOOT held 3s — forgetting WiFi, entering setup mode");
-                wifi_net_forget();
+            held++;
+            if (held == 30 && !long_fired) {         // 3 s hold -> WPS
+                ESP_LOGI(TAG, "BOOT held 3s — starting WPS");
+                wifi_net_start_wps();
+                long_fired = true;
             }
         } else {
+            if (held >= 1 && !long_fired) {          // debounced short press -> AP setup
+                ESP_LOGI(TAG, "BOOT short press — entering WiFi setup (SoftAP)");
+                wifi_net_enter_setup();
+            }
             held = 0;
+            long_fired = false;
         }
     }
 }
@@ -68,9 +79,17 @@ void app_main(void) {
     // not polling yet), then bring WiFi + the web UI up.
     for (int i = 0; i < 80 && !tud_mounted(); i++) vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGI(TAG, "mounted=%d — starting WiFi", tud_mounted() ? 1 : 0);
+    led_status_start();
     wifi_net_start();
     webui_start();
+    // BLE HID host comes up after WiFi so the coexistence arbiter is already
+    // arbitrating the shared 2.4 GHz radio. BLE controllers can then be paired
+    // from the web UI as an alternative to the browser gamepad relay.
+    bt_host_start();
     xTaskCreate(boot_button_task, "bootbtn", 2560, NULL, tskIDLE_PRIORITY + 2, NULL);
+    // Everything came up — confirm this image so the OTA bootloader keeps it
+    // (a firmware that crashes before here rolls back to the previous slot).
+    ota_mark_valid();
 
     // Periodic UART status so a serial monitor sees the whole story even if
     // single event lines are missed — and so a reboot is obvious (t resets).

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Talon OTA</title>
+<style>
+  :root { --bg:#101410; --panel:#1a221a; --edge:#2c3a2c; --txt:#cfe3cf;
+          --dim:#7a8f7a; --hot:#52d053; --b:#d0453f; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt);
+         font:15px/1.5 system-ui, sans-serif; }
+  main { max-width:420px; margin:0 auto; padding:16px; }
+  h1 { text-align:center; font-size:22px; letter-spacing:6px; color:var(--hot); }
+  .sub { text-align:center; color:var(--dim); font-size:12px; margin-top:-8px; }
+  .drop { margin-top:16px; border:2px dashed var(--edge); border-radius:14px;
+          background:var(--panel); padding:40px 16px; text-align:center;
+          color:var(--dim); cursor:pointer; }
+  .drop.over { border-color:var(--hot); color:var(--txt); }
+  .bar { height:10px; background:#232d23; border-radius:6px; margin-top:16px;
+         overflow:hidden; display:none; }
+  .bar > div { height:100%; width:0; background:var(--hot); transition:width .2s; }
+  #msg { text-align:center; margin-top:14px; min-height:22px; white-space:pre-line; }
+  a { color:var(--dim); }
+</style>
+</head>
+<body>
+<main>
+  <h1>TALON</h1>
+  <div class="sub">firmware update</div>
+  <div class="drop" id="drop">Drop <b>talon.bin</b> here, or tap to choose.
+    <input type="file" id="file" accept=".bin" hidden></div>
+  <div class="bar" id="bar"><div id="fill"></div></div>
+  <div id="msg"></div>
+  <p style="text-align:center"><a href="/">← back to controller</a></p>
+</main>
+<script>
+const drop = document.getElementById('drop'), file = document.getElementById('file'),
+      bar = document.getElementById('bar'), fill = document.getElementById('fill'),
+      msg = document.getElementById('msg');
+drop.onclick = () => file.click();
+['dragover','dragenter'].forEach(e => drop.addEventListener(e, ev => {
+  ev.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => {
+  ev.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', ev => { if (ev.dataTransfer.files[0]) upload(ev.dataTransfer.files[0]); });
+file.addEventListener('change', () => { if (file.files[0]) upload(file.files[0]); });
+
+function upload(f) {
+  msg.textContent = `Uploading ${f.name} (${(f.size/1024/1024).toFixed(2)} MB)…`;
+  bar.style.display = 'block';
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/ota');
+  xhr.upload.onprogress = e => { if (e.lengthComputable) fill.style.width = (e.loaded/e.total*100)+'%'; };
+  xhr.onload = () => {
+    if (xhr.status === 200) {
+      msg.textContent = 'Update flashed. Talon is rebooting into the new firmware.\n' +
+                        'It will be back at http://talon.local/ in a few seconds.';
+    } else {
+      msg.textContent = 'Update failed: ' + (xhr.responseText || xhr.status);
+    }
+  };
+  xhr.onerror = () => { msg.textContent = 'Upload connection lost.'; };
+  xhr.send(f);
+}
+</script>
+</body>
+</html>

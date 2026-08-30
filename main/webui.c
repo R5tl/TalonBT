@@ -26,6 +26,7 @@
 #include "talon.h"
 #include "talon_igr.h"
 #include "wifi_net.h"
+#include "bt_host.h"
 
 static const char *TAG = "talon.web";
 
@@ -33,6 +34,15 @@ extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[]   asm("_binary_index_html_end");
 extern const char setup_html_start[] asm("_binary_setup_html_start");
 extern const char setup_html_end[]   asm("_binary_setup_html_end");
+extern const char ota_html_start[]   asm("_binary_ota_html_start");
+extern const char ota_html_end[]     asm("_binary_ota_html_end");
+
+void ota_register(httpd_handle_t srv);
+
+static esp_err_t ota_page_get(httpd_req_t *req) {
+    httpd_resp_set_type(req, "text/html");
+    return httpd_resp_send(req, ota_html_start, ota_html_end - ota_html_start - 1);
+}
 
 static esp_err_t setup_get(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/html");
@@ -186,6 +196,28 @@ static esp_err_t wps_start_get(httpd_req_t *req) {
     return r;
 }
 
+// ---- Bluetooth controller endpoints ---------------------------------------
+
+static esp_err_t bt_scan_get(httpd_req_t *req) {
+    static char json[2048];
+    bt_host_scan_json(json, sizeof(json));
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, json);
+}
+
+static esp_err_t bt_connect_get(httpd_req_t *req) {
+    char addr[24];
+    if (!qs_value(req, "addr", addr, sizeof(addr))) return api_bad(req, "missing addr");
+    url_decode(addr);
+    if (!bt_host_connect(addr)) return api_bad(req, "bad addr");
+    return api_ok(req);
+}
+
+static esp_err_t bt_forget_get(httpd_req_t *req) {
+    bt_host_forget();
+    return api_ok(req);
+}
+
 static esp_err_t status_get(httpd_req_t *req) {
     char ip[16] = "";
     int rssi = 0;
@@ -197,7 +229,9 @@ static esp_err_t status_get(httpd_req_t *req) {
 
     static const char *mode_names[] = { "sta", "setup", "wps" };
     static const char *wps_names[]  = { "idle", "connecting", "connected", "failed" };
-    char body[448];
+    char btbuf[220];
+    bt_host_status_json(btbuf, sizeof(btbuf));
+    char body[768];
     snprintf(body, sizeof(body),
         "{\"mounted\":%d,\"ip\":\"%s\",\"rssi\":%d,"
         "\"mode\":\"%s\",\"ssid\":\"%s\",\"hostname\":\"" TALON_HOSTNAME "\","
@@ -205,7 +239,7 @@ static esp_err_t status_get(httpd_req_t *req) {
         "\"in_ok\":%lu,\"in_err\":%lu,\"rumble_pkts\":%lu,"
         "\"open\":%lu,\"reset\":%lu,\"ctrl_xid\":%lu,"
         "\"rumble_l\":%u,\"rumble_r\":%u,"
-        "\"digital\":%u,\"free_heap\":%u}",
+        "\"digital\":%u,\"free_heap\":%u,%s}",
         tud_mounted() ? 1 : 0, ip, rssi,
         mode_names[wifi_net_mode()], wifi_net_ssid(),
         wps_names[wifi_net_wps_state()], wifi_net_wps_remaining(),
@@ -213,7 +247,7 @@ static esp_err_t status_get(httpd_req_t *req) {
         (unsigned long)g_xid_out_pkts,
         (unsigned long)g_xid_open, (unsigned long)g_xid_reset,
         (unsigned long)g_xid_ctrl_xid,
-        rl, rr, rep[2], (unsigned)esp_get_free_heap_size());
+        rl, rr, rep[2], (unsigned)esp_get_free_heap_size(), btbuf);
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, body);
 }
@@ -221,7 +255,8 @@ static esp_err_t status_get(httpd_req_t *req) {
 void webui_start(void) {
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.lru_purge_enable = true;
-    cfg.max_uri_handlers = 16;   // the default (8) silently drops registrations
+    cfg.max_uri_handlers = 24;   // the default (8) silently drops registrations
+    cfg.stack_size = 8192;       // OTA + JSON handlers need more than the 4 KB default
     httpd_handle_t srv = NULL;
     if (httpd_start(&srv, &cfg) != ESP_OK) {
         ESP_LOGE(TAG, "httpd_start failed");
@@ -230,6 +265,7 @@ void webui_start(void) {
     static const httpd_uri_t uris[] = {
         { .uri = "/",                .method = HTTP_GET, .handler = root_get },
         { .uri = "/setup",           .method = HTTP_GET, .handler = setup_get },
+        { .uri = "/ota",             .method = HTTP_GET, .handler = ota_page_get },
         { .uri = "/api/btn",         .method = HTTP_GET, .handler = btn_get },
         { .uri = "/api/axis",        .method = HTTP_GET, .handler = axis_get },
         { .uri = "/api/press",       .method = HTTP_GET, .handler = press_get },
@@ -241,9 +277,13 @@ void webui_start(void) {
         { .uri = "/api/wifi/save",   .method = HTTP_GET, .handler = wifi_save_get },
         { .uri = "/api/wifi/forget", .method = HTTP_GET, .handler = wifi_forget_get },
         { .uri = "/api/wps/start",   .method = HTTP_GET, .handler = wps_start_get },
+        { .uri = "/api/bt/scan",     .method = HTTP_GET, .handler = bt_scan_get },
+        { .uri = "/api/bt/connect",  .method = HTTP_GET, .handler = bt_connect_get },
+        { .uri = "/api/bt/forget",   .method = HTTP_GET, .handler = bt_forget_get },
     };
     for (size_t i = 0; i < sizeof(uris) / sizeof(uris[0]); i++)
         httpd_register_uri_handler(srv, &uris[i]);
+    ota_register(srv);
     httpd_register_err_handler(srv, HTTPD_404_NOT_FOUND, err_404);
     ESP_LOGI(TAG, "web UI up on port %d", cfg.server_port);
 }

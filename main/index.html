@@ -73,6 +73,8 @@
 </head>
 <body>
 <header><h1>TALON</h1>
+  <a href="/ota" style="position:absolute;top:12px;right:44px;color:var(--dim);
+     text-decoration:none;font-size:19px" title="Firmware update">⬆</a>
   <a href="/setup" style="position:absolute;top:12px;right:14px;color:var(--dim);
      text-decoration:none;font-size:20px" title="WiFi setup">⚙</a>
 </header>
@@ -109,6 +111,22 @@
     <button data-b="ls">L CLICK</button>
     <button onclick="fetch('/api/release')">RELEASE ALL</button>
     <button data-b="rs">R CLICK</button>
+  </div>
+
+  <div class="cluster igr">
+    <div class="igr-head" onclick="document.getElementById('bt').classList.toggle('open')">
+      <span>🎮 BLUETOOTH CONTROLLER</span><span class="chev">▾</span>
+    </div>
+    <div id="bt" class="igr-body">
+      <div class="igr-note">Pair a <b>BLE</b> controller (BLE Xbox pad, BLE 8BitDo,
+        generic BLE gamepad) to drive the Xbox with no browser open. The
+        ESP32-S3 has no Bluetooth Classic, so DualShock/DualSense/Switch Pro
+        can't pair here — use a plugged-in pad through this page for those.</div>
+      <div id="btstate" style="color:var(--dim);font-size:12px;margin-bottom:8px">no controller paired</div>
+      <button onclick="btScan()" id="btScanBtn">SCAN FOR CONTROLLERS</button>
+      <div id="btnets" style="margin-top:8px"></div>
+      <button onclick="btForget()" style="margin-top:8px">FORGET CONTROLLER</button>
+    </div>
   </div>
 
   <div class="cluster igr">
@@ -247,6 +265,29 @@ async function igr(action, btn) {
   setTimeout(() => btn.classList.remove('flash'), 900);
 }
 
+// ---- Bluetooth controller pairing -----------------------------------------
+const btnetsEl = () => document.getElementById('btnets');
+async function btScan() {
+  const btn = document.getElementById('btScanBtn');
+  btn.disabled = true; btn.textContent = 'SCANNING (3s)…';
+  try {
+    const list = await (await fetch('/api/bt/scan')).json();
+    const box = btnetsEl();
+    box.innerHTML = '';
+    list.sort((a, b) => b.gamepad - a.gamepad || b.rssi - a.rssi).forEach(n => {
+      const d = document.createElement('button');
+      d.style.cssText = 'display:flex;justify-content:space-between;width:100%;margin-top:6px';
+      d.innerHTML = `<span>${n.gamepad ? '🎮 ' : ''}${n.name || n.addr}</span>` +
+                    `<span style="color:var(--dim);font-size:12px">${n.rssi} dBm</span>`;
+      d.onclick = () => fetch('/api/bt/connect?addr=' + encodeURIComponent(n.addr));
+      box.appendChild(d);
+    });
+    if (!list.length) box.textContent = 'No BLE controllers found. Put the pad in pairing mode and rescan.';
+  } catch (e) { btnetsEl().textContent = 'BT scan failed.'; }
+  btn.disabled = false; btn.textContent = 'SCAN FOR CONTROLLERS';
+}
+async function btForget() { await fetch('/api/bt/forget'); btnetsEl().innerHTML = ''; }
+
 // status poll
 setInterval(async () => {
   try {
@@ -254,6 +295,14 @@ setInterval(async () => {
     document.getElementById('status').textContent =
       `${s.mounted ? 'CONNECTED to Xbox' : 'not enumerated'} · rssi ${s.rssi} dBm · ` +
       `reports ${s.in_ok}` + (s.rumble_l || s.rumble_r ? ` · rumble ${s.rumble_l}/${s.rumble_r}` : '');
+    const bt = document.getElementById('btstate');
+    if (bt) {
+      if (s.bt_connected)
+        bt.textContent = `🎮 ${s.bt_name || s.bt_addr} connected` +
+          (s.bt_mapped ? ` · ${s.bt_reports} reports` : ' · no gamepad map (see /api/status bt_last)');
+      else if (s.bt_bonded) bt.textContent = `bonded to ${s.bt_addr} — reconnecting…`;
+      else bt.textContent = 'no controller paired';
+    }
   } catch (e) {
     document.getElementById('status').textContent = 'unreachable';
   }
