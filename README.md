@@ -45,17 +45,6 @@ Wiring to the Xbox:
   enumerates as the Duke, and it also powers Talon from the console's 5 V.
 - **UART USB-C → your PC** for flashing and the serial console (COM3 here).
 
-> ⚠️ **Underside 5 V solder link.** On this dual-USB-C board the two USB-C ports
-> don't share their 5 V rail by default. Bridge the **5 V solder jumper on the
-> back of the board** so the native (Xbox-side) port powers the whole board —
-> otherwise Talon only powers up from the UART port and stays dark when plugged
-> into the Xbox alone.
-
-<!-- Drop a photo of the underside solder link at docs/solder-link.jpg and it
-     will show here:
-<p align="center"><img src="docs/solder-link.jpg" alt="Underside 5V solder link" width="60%"></p>
--->
-
 ## How it works
 
 The Duke is an XID device: one interface (class `0x58`, subclass `0x42`) with two
