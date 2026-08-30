@@ -32,6 +32,30 @@ the same skeleton (ESP-IDF + esp_tinyusb + a custom application class driver).
 </p>
 <p align="center"><sub>The browser controller (talon.local) · WiFi setup portal · OTA firmware update</sub></p>
 
+## Hardware
+
+Developed on the **[Lonely Binary ESP32-S3 N16R8 Gold Edition](https://www.amazon.ca/dp/B0FFLXM9KL)**
+(ESP32-S3, 16 MB flash, 8 MB PSRAM, **dual USB-C**, IPEX external antenna, onboard
+WS2812 RGB LED on **GPIO48**). Any ESP32-S3 board with a native USB port works;
+adjust `TALON_LED_GPIO` in `main/led_status.h` if the RGB LED is on another pin.
+
+Wiring to the Xbox:
+
+- **Native USB-C → the Xbox controller port.** This is the USB device the Xbox
+  enumerates as the Duke, and it also powers Talon from the console's 5 V.
+- **UART USB-C → your PC** for flashing and the serial console (COM3 here).
+
+> ⚠️ **Underside 5 V solder link.** On this dual-USB-C board the two USB-C ports
+> don't share their 5 V rail by default. Bridge the **5 V solder jumper on the
+> back of the board** so the native (Xbox-side) port powers the whole board —
+> otherwise Talon only powers up from the UART port and stays dark when plugged
+> into the Xbox alone.
+
+<!-- Drop a photo of the underside solder link at docs/solder-link.jpg and it
+     will show here:
+<p align="center"><img src="docs/solder-link.jpg" alt="Underside 5V solder link" width="60%"></p>
+-->
+
 ## How it works
 
 The Duke is an XID device: one interface (class `0x58`, subclass `0x42`) with two
