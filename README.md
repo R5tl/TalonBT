@@ -101,9 +101,28 @@ Two ways to drive the Xbox with a real controller:
   the browsing device supports (including DualSense over the PC's Bluetooth).
 - **Direct BLE pairing** — pair a **BLE** controller straight to the ESP32-S3
   from the *Bluetooth Controller* panel on the controller page (no browser
-  needed once bonded). Because the S3 has **no Bluetooth Classic**, only BLE
-  pads work here (BLE Xbox controllers, BLE 8BitDo, generic BLE gamepads);
-  DualShock/DualSense/Switch Pro are Classic and must use the browser relay.
+  needed once bonded).
+
+### Bluetooth controller support
+
+Direct pairing is **BLE-only** — the ESP32-S3 has no Bluetooth Classic radio.
+A generic HID parser maps standard gamepad reports, so most BLE HID pads should
+work, but the button/axis mapping is still **experimental** and may need a
+per-controller tweak (the raw report is exposed at `/api/status` as `bt_last`
+to help dial it in).
+
+| Controller | Direct BLE pairing | Notes |
+|---|---|---|
+| Xbox Wireless Controller (Model 1708+, Series, Elite 2) | ✅ expected | These use BLE HID |
+| 8BitDo pads in a BLE/"D-input" mode | ✅ expected | Mode switch varies per model |
+| Generic BLE HID gamepads | ✅ expected | Standard HID usages |
+| Sony DualShock 4 / DualSense | ❌ no | Bluetooth **Classic** — use the browser relay |
+| Nintendo Switch Pro / Joy-Con | ❌ no | Bluetooth **Classic** — use the browser relay |
+| Xbox 360 / original wireless | ❌ no | Proprietary 2.4 GHz, not Bluetooth |
+
+Anything not directly pairable still works through the **browser Gamepad API**
+relay above (pair it to the phone/PC, not to Talon). *Confirmed-working BLE pads
+will be listed here as they're tested — reports welcome.*
 
 ## OTA updates
 
