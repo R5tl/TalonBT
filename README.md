@@ -23,6 +23,41 @@ descriptor** (`bmRequestType 0xC1, GET_DESCRIPTOR, wValue 0x4200`) and
 - **`talon_input.c`** — the shared controller state (spinlock-guarded).
 - **`wifi_net.c` / `webui.c` / `index.html`** — WiFi station + HTTP API + web UI.
 
+## Finding it
+
+Talon advertises **mDNS**, so once it's on your network it's at
+**http://talon.local/** (and appears as host `talon` in your router's device
+list). The web page has a ⚙ link to the WiFi setup page.
+
+## WiFi setup (like Kratos)
+
+Credentials live in NVS. With none stored, Talon starts an open SoftAP
+**`Talon-Setup`** with a captive portal — join it from a phone and the setup
+page pops up. You can:
+
+- **Scan + join** a network (enter the password), or
+- **WPS** — press your router's WPS button, then tap *Start WPS*.
+
+Negotiated/entered credentials are saved and rejoined automatically on boot.
+Holding the **BOOT** button (~3 s) forgets WiFi and returns to setup mode.
+For a personal build you can also compile credentials in (`main/wifi_creds.h`,
+seeded into NVS on first boot).
+
+## Physical controller passthrough
+
+The controller page reads the browser **Gamepad API**: plug a controller into
+the phone/PC viewing the page and it drives the Xbox directly — the whole state
+is streamed to `/api/state` at ~30 Hz. (This is the local-browser gamepad, not
+a controller paired to the ESP32 — see "Bluetooth" in the repo notes.)
+
+## Cerbios IGR
+
+If the console runs the **Cerbios** BIOS, Talon exposes its default In-Game
+Reset combos as one-tap shortcuts (collapsible section on the controller page,
+or `/api/igr?a=...`): `dash` (LT+RT+Start+Back), `game`, `full`, `cycle`,
+`shutdown`, `screen`. Combos and their nibble encoding come from
+CerbiosToolInternal (`Config.cs`).
+
 ## Web API
 
 Everything is `GET`, so `curl` can drive the pad:
@@ -31,8 +66,14 @@ Everything is `GET`, so `curl` can drive the pad:
 /api/press?b=down&ms=120       tap a control (press, hold ms, release)
 /api/btn?b=a&v=1               hold (v=1) / release (v=0)
 /api/axis?a=lx&v=-32768        analog: lt/rt 0..255, lx/ly/rx/ry -32768..32767
+/api/state?v=d,a,b,x,y,bl,wh,lt,rt,lx,ly,rx,ry   whole report at once
 /api/release                   release everything
-/api/status                    JSON diagnostics
+/api/igr?a=dash                Cerbios IGR shortcut
+/api/status                    JSON diagnostics (mode, ssid, wps, USB, rumble)
+/api/scan                      visible networks (JSON)
+/api/wifi/save?ssid=&pass=     save credentials + join
+/api/wifi/forget               erase credentials, back to setup AP
+/api/wps/start                 WPS push-button join
 ```
 
 Controls: `up down left right start back ls rs a b x y black white lt rt lx ly rx ry`.
