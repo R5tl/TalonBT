@@ -57,11 +57,16 @@ list). The web page has a ⚙ link to the WiFi setup page.
 ## WiFi setup (like Kratos)
 
 Credentials live in NVS. With none stored — or if the stored ones fail to
-connect within 45 s — Talon starts an open SoftAP **`Talon-Setup`** with a
-captive portal; join it from a phone and the setup page pops up. You can **scan +
-join** a network, or use **WPS**. Entered/negotiated credentials are saved and
-rejoined automatically on boot. For a personal build you can also compile
-credentials in (`main/wifi_creds.h`, seeded into NVS on first boot).
+connect within 45 s — Talon starts an open SoftAP with a captive portal:
+
+1. Join the WiFi network **`Talon-Setup`** (open, no password).
+2. If the setup page doesn't pop up automatically, browse to
+   **`http://192.168.4.1`**.
+3. **Scan + join** your network (or use **WPS**).
+
+Entered/negotiated credentials are saved and rejoined automatically on boot.
+For a personal build you can also compile credentials in (`main/wifi_creds.h`,
+seeded into NVS on first boot).
 
 The **BOOT button** provides phone-free setup, matching Kratos:
 
