@@ -34,10 +34,21 @@ the same skeleton (ESP-IDF + esp_tinyusb + a custom application class driver).
 
 ## Hardware
 
-Developed on the **[Lonely Binary ESP32-S3 N16R8 Gold Edition](https://www.amazon.ca/dp/B0FFLXM9KL)**
+Developed and tested on the **[Lonely Binary ESP32-S3 N16R8 Gold Edition](https://www.amazon.ca/dp/B0FFLXM9KL)**
 (ESP32-S3, 16 MB flash, 8 MB PSRAM, **dual USB-C**, IPEX external antenna, onboard
-WS2812 RGB LED on **GPIO48**). Any ESP32-S3 board with a native USB port works;
-adjust `TALON_LED_GPIO` in `main/led_status.h` if the RGB LED is on another pin.
+WS2812 RGB LED on **GPIO48**).
+
+Other **ESP32-S3** boards should work — just adjust `TALON_LED_GPIO` in
+`main/led_status.h` if the RGB LED is on a different pin (or no LED). Other ESP32
+variants **may** work but are **currently untested**:
+
+- **ESP32-S2** — has native USB (the controller emulation would work) but **no
+  Bluetooth at all**, so direct BLE controller pairing is unavailable.
+- **ESP32 (original), C3, C6, H2** — **not supported**: they have no native
+  USB-OTG device peripheral, which Talon needs to present itself as the pad.
+
+If you get Talon running on another board, a report (or PR noting the pin
+changes) is welcome.
 
 <p align="center">
   <a href="https://www.amazon.ca/dp/B0FFLXM9KL"><img src="docs/board.jpg" alt="Lonely Binary ESP32-S3 N16R8 Gold Edition" width="55%"></a>
