@@ -1,0 +1,10 @@
+// Talon — WiFi credentials.
+//
+//   1. cp main/wifi_creds.h.example main/wifi_creds.h
+//   2. fill in your SSID / password below
+//
+// main/wifi_creds.h is gitignored on purpose — never commit real credentials.
+#pragma once
+
+#define TALON_WIFI_SSID  "your-ssid"
+#define TALON_WIFI_PASS  "your-password"
